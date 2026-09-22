@@ -3,6 +3,7 @@ import { mkdir, readFile, unlink } from 'node:fs/promises';
 import { SerialQueue, ServiceError, token, digest } from './core.js';
 import { OrderHistory } from './order-history.js';
 import { orderDetail } from './order-data.js';
+import { responseIdentity } from './identity.js';
 
 const HOME = 'https://www.hyperpure.com/';
 export class HyperpureBrowser {
@@ -18,6 +19,19 @@ export class HyperpureBrowser {
     this.history = new OrderHistory(store, config.mcpToken);
   }
   async start() {
+    this.identityKey = await this.store.read('identity-key', null);
+    if (!this.identityKey) {
+      this.identityKey = token();
+      await this.store.write('identity-key', this.identityKey);
+    }
+    this.identityBinding = await this.store.read('binding', null);
+    const apiOutlet = await this.store.read('api-outlet', null);
+    if (
+      apiOutlet?.outletId &&
+      apiOutlet.identity ===
+        digest(JSON.stringify({ outlet: this.identityBinding?.text, outletId: apiOutlet.outletId }))
+    )
+      this.outletId = apiOutlet.outletId;
     await mkdir(this.config.dataDir, { recursive: true, mode: 0o700 });
     this.context = await chromium.launchPersistentContext(`${this.config.dataDir}/profile`, {
       headless: true,
@@ -52,6 +66,15 @@ export class HyperpureBrowser {
       checkout: 'Owner reviews the exact cart; final payment is completed on Hyperpure.',
     };
   }
+  identity(verified = this.state === 'READY') {
+    return responseIdentity({
+      key: this.identityKey,
+      mobile: this.config.mobile,
+      binding: this.identityBinding,
+      outletId: this.outletId,
+      verified,
+    });
+  }
   async check() {
     // Active OTP flow owns the page. Health checks must never navigate it away.
     if (this.challenge && this.challenge.expiresAt > Date.now()) return this.status();
@@ -60,6 +83,7 @@ export class HyperpureBrowser {
       await this.page.goto(HOME, { waitUntil: 'domcontentloaded' });
       const login = this.page.getByRole('button', { name: 'Login/Signup', exact: true });
       const binding = await this.store.read('binding', null);
+      this.identityBinding = binding;
       if (binding) {
         const identity = this.page.locator(binding.selector);
         await identity.or(login).first().waitFor({ state: 'visible', timeout: 45000 });
@@ -223,10 +247,15 @@ export class HyperpureBrowser {
     if (!binding) throw new ServiceError('SETUP_REQUIRED');
     const nav = this.page.getByRole('navigation', { name: 'main navigation' });
     // The site's navigation wrapper has zero height; wait for identity text attachment.
-    await nav
-      .filter({ hasText: binding.parts[0] })
-      .filter({ hasText: binding.parts[1] })
-      .waitFor({ state: 'attached', timeout: 45000 });
+    try {
+      await nav
+        .filter({ hasText: binding.parts[0] })
+        .filter({ hasText: binding.parts[1] })
+        .waitFor({ state: 'attached', timeout: 45000 });
+    } catch {
+      this.state = 'OUTLET_MISMATCH';
+      throw new ServiceError('OUTLET_MISMATCH');
+    }
     const text = (await nav.innerText()).replace(/\s+/g, ' ');
     if (!binding.parts.every((part) => text.includes(part))) {
       this.state = 'OUTLET_MISMATCH';
@@ -413,15 +442,22 @@ export class HyperpureBrowser {
     );
     const binding = await this.store.read('binding', null),
       outletId = this.orderHeaders['x-outletid'];
-    if (!outletId) throw new ServiceError('OUTLET_MISMATCH');
+    if (!outletId) {
+      this.state = 'OUTLET_MISMATCH';
+      throw new ServiceError('OUTLET_MISMATCH');
+    }
     const identity = digest(JSON.stringify({ outlet: binding.text, outletId }));
     const saved = await this.store.read('api-outlet', null);
-    if (saved && saved.identity !== identity) throw new ServiceError('OUTLET_MISMATCH');
-    if (!saved) await this.store.write('api-outlet', { identity });
-    this.orderBinding = identity;
+    if (saved && saved.identity !== identity) {
+      this.state = 'OUTLET_MISMATCH';
+      throw new ServiceError('OUTLET_MISMATCH');
+    }
     const data = await this.readOrderResponse(response);
     if (!Array.isArray(data.ListOfOrderDetail)) throw new ServiceError('ORDER_SCHEMA_CHANGED');
     await this.history.remember(data.ListOfOrderDetail, identity);
+    if (!saved?.outletId) await this.store.write('api-outlet', { identity, outletId });
+    this.outletId = outletId;
+    this.orderBinding = identity;
     return data.ListOfOrderDetail;
   }
   async readOrderResponse(response) {
@@ -481,7 +517,7 @@ export class HyperpureBrowser {
     const data = await this.orderApi('/consumer/order/history/details', { orderId });
     if (String(data.OrderId) !== orderId || data.OrderNo !== index.orders[orderId].orderNumber)
       throw new ServiceError('ORDER_IDENTITY_MISMATCH');
-    return orderDetail(data);
+    return orderDetail(data, index.orders[orderId]);
   }
   async invoice(orderId, documentKind = 'invoice') {
     const order = await this.order(orderId);
@@ -519,8 +555,10 @@ export class HyperpureBrowser {
     await payButton.waitFor({ timeout: 45000 });
     const checkoutText = await this.page.locator('main').innerText();
     const binding = await this.store.read('binding', {});
-    if (!binding.parts.every((part) => checkoutText.includes(part.replace(/:$/, ''))))
+    if (!binding.parts.every((part) => checkoutText.includes(part.replace(/:$/, '')))) {
+      this.state = 'OUTLET_MISMATCH';
       throw new ServiceError('OUTLET_MISMATCH');
+    }
     const payText = await payButton.innerText();
     const payable = Number(payText.match(/₹([\d,.]+)/)?.[1]?.replaceAll(',', ''));
     if (!Number.isFinite(payable)) throw new ServiceError('CHECKOUT_PARSE_FAILED');

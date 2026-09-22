@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0 — 2026-09-22
+
+- History and details now share history-sourced delivery timestamps in UTC with millisecond precision. Differing upstream detail timestamps remain visible as diagnostics; missing history values remain null.
+- Every authenticated tool result includes account/outlet identity, including PDFs, application errors and input-validation errors. Login expiry and outlet mismatch explicitly mark identity unverified.
+- Stable installation-local account/outlet references survive restarts and access-token rotation. Verified API outlet IDs are persisted privately.
+- Outlet IDs are persisted only after a successful, valid history response. Batch tool errors carry the same identity context as individual calls.
+- Order schema is now 2.1. Existing 2.0 cursors expire on upgrade; rediscover older orders if their cached index lacks canonical delivery metadata.
+
 ## 0.3.0 — 2026-09-22
 
 First public release under the MIT license.

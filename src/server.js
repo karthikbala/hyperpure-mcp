@@ -5,6 +5,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { z } from 'zod';
 import { HyperpureBrowser } from './browser.js';
+import { toolResult, toolError, toolMessageDecorator } from './responses.js';
 import { JsonStore, ApprovalStore, ServiceError, token, sameSecret } from './core.js';
 
 process.umask(0o077);
@@ -161,7 +162,7 @@ app.post('/owner/api/logout', (req, res) => {
   res.json({ ok: true });
 });
 function mcp() {
-  const server = new McpServer({ name: 'hyperpure', version: '0.3.0' });
+  const server = new McpServer({ name: 'hyperpure', version: '0.4.0' });
   const register = (name, description, schema, fn, readOnly = true) =>
     server.registerTool(
       name,
@@ -176,45 +177,22 @@ function mcp() {
         },
       },
       async (args) => {
-        try {
-          const result = await browser.queue.run(() => fn(args));
-          if (result?.mimeType === 'application/pdf')
-            return {
-              content: [
-                {
-                  type: 'resource',
-                  resource: {
-                    uri: `hyperpure://${result.documentKind || 'invoice'}/${result.orderId}`,
-                    mimeType: result.mimeType,
-                    blob: result.blob,
-                  },
-                },
-              ],
-            };
-          return {
-            structuredContent: result,
-            content: [{ type: 'text', text: JSON.stringify(result) }],
-          };
-        } catch (e) {
+        const failure = (error, verified) => {
           console.error(
-            JSON.stringify({ event: 'tool_failed', tool: name, code: e.code || e.name }),
+            JSON.stringify({ event: 'tool_failed', tool: name, code: error.code || error.name }),
           );
-          return {
-            isError: true,
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  code: e.code || 'SITE_UNAVAILABLE',
-                  message:
-                    e instanceof ServiceError
-                      ? e.message
-                      : 'Operation failed; inspect session status.',
-                  loginUrl: `${config.publicOrigin}/owner`,
-                }),
-              },
-            ],
-          };
+          return toolError(error, browser.identity(verified), `${config.publicOrigin}/owner`);
+        };
+        try {
+          return await browser.queue.run(async () => {
+            try {
+              return toolResult(await fn(args), browser.identity());
+            } catch (error) {
+              return failure(error, browser.state === 'READY');
+            }
+          });
+        } catch (error) {
+          return failure(error, false);
         }
       },
     );
@@ -304,6 +282,9 @@ app.post('/mcp', async (req, res) => {
       sessionIdGenerator: undefined,
       enableJsonResponse: true,
     });
+  const send = transport.send.bind(transport);
+  const decorate = toolMessageDecorator(req.body, () => browser.identity(false));
+  transport.send = (message, options) => send(decorate(message), options);
   res.on('close', () => {
     transport.close().catch(() => {});
     server.close().catch(() => {});
