@@ -122,7 +122,7 @@ It reads your account and may download an invoice. It does not change the cart o
 
 ## Contributing and maintenance
 
-See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) and the [changelog](CHANGELOG.md). CI checks Node 22/24, syntax, tests, dependency advisories and tracked-file hygiene. Dependabot proposes dependency and GitHub Actions updates; they require review. Versioned releases document changes without promising unattended maintenance or a support SLA.
+See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md), the [maintenance guide](docs/maintaining.md) and the [changelog](CHANGELOG.md). CI checks Node 22/24, syntax, tests, dependency advisories and tracked-file hygiene. Dependabot proposes dependency and GitHub Actions updates; they require review. Versioned releases document changes without promising unattended maintenance or a support SLA.
 
 ## License
 
