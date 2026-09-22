@@ -452,12 +452,12 @@ export class HyperpureBrowser {
       this.state = 'OUTLET_MISMATCH';
       throw new ServiceError('OUTLET_MISMATCH');
     }
-    if (!saved?.outletId) await this.store.write('api-outlet', { identity, outletId });
-    this.outletId = outletId;
-    this.orderBinding = identity;
     const data = await this.readOrderResponse(response);
     if (!Array.isArray(data.ListOfOrderDetail)) throw new ServiceError('ORDER_SCHEMA_CHANGED');
     await this.history.remember(data.ListOfOrderDetail, identity);
+    if (!saved?.outletId) await this.store.write('api-outlet', { identity, outletId });
+    this.outletId = outletId;
+    this.orderBinding = identity;
     return data.ListOfOrderDetail;
   }
   async readOrderResponse(response) {

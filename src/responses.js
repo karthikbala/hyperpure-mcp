@@ -1,5 +1,18 @@
 import { ServiceError } from './core.js';
 
+export function toolMessageDecorator(body, getIdentity) {
+  const requests = Array.isArray(body) ? body : [body];
+  const toolIds = new Set(
+    requests
+      .filter((request) => request?.method === 'tools/call' && Object.hasOwn(request, 'id'))
+      .map((request) => request.id),
+  );
+  return (message) =>
+    Object.hasOwn(message, 'id') && toolIds.has(message.id)
+      ? decorateToolMessage(message, getIdentity())
+      : message;
+}
+
 export function toolResult(value, identity) {
   if (value?.mimeType === 'application/pdf') {
     const { blob, ...metadata } = value;

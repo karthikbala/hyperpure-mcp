@@ -5,7 +5,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { z } from 'zod';
 import { HyperpureBrowser } from './browser.js';
-import { toolResult, toolError, decorateToolMessage } from './responses.js';
+import { toolResult, toolError, toolMessageDecorator } from './responses.js';
 import { JsonStore, ApprovalStore, ServiceError, token, sameSecret } from './core.js';
 
 process.umask(0o077);
@@ -283,13 +283,8 @@ app.post('/mcp', async (req, res) => {
       enableJsonResponse: true,
     });
   const send = transport.send.bind(transport);
-  transport.send = (message, options) =>
-    send(
-      req.body?.method === 'tools/call'
-        ? decorateToolMessage(message, browser.identity(false))
-        : message,
-      options,
-    );
+  const decorate = toolMessageDecorator(req.body, () => browser.identity(false));
+  transport.send = (message, options) => send(decorate(message), options);
   res.on('close', () => {
     transport.close().catch(() => {});
     server.close().catch(() => {});

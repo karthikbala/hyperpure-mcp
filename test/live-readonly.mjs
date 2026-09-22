@@ -89,6 +89,37 @@ try {
   assert.equal(invalid.isError, true);
   assert.equal(checkIdentity(invalid).verification, 'unverified');
   console.log('PASS identity on operation and input-validation errors');
+  const batchResponse = await fetch(new URL('/mcp', origin), {
+    method: 'POST',
+    headers: {
+      Authorization: 'Bearer ' + token,
+      'Content-Type': 'application/json',
+      Accept: 'application/json, text/event-stream',
+      'Mcp-Protocol-Version': '2025-03-26',
+    },
+    body: JSON.stringify([
+      {
+        jsonrpc: '2.0',
+        id: 0,
+        method: 'tools/call',
+        params: { name: 'list_orders', arguments: { pageSize: 0 } },
+      },
+      {
+        jsonrpc: '2.0',
+        id: 'unknown',
+        method: 'tools/call',
+        params: { name: 'unknown_tool', arguments: {} },
+      },
+    ]),
+  });
+  assert.equal(batchResponse.status, 200);
+  const batch = await batchResponse.json();
+  assert.ok(Array.isArray(batch) && batch.length === 2);
+  for (const response of batch) {
+    assert.equal(response.result.isError, true);
+    assert.equal(checkIdentity(response.result).verification, 'unverified');
+  }
+  console.log('PASS identity on batch input-validation and unknown-tool errors');
   if (first.orders.length) {
     const detail = await call('get_order', { orderId: first.orders[0].orderId });
     assert.ok(detail.orderId === first.orders[0].orderId, 'Order identity mismatch');
