@@ -13,6 +13,7 @@ A self-hosted [Model Context Protocol](https://modelcontextprotocol.io/) server 
 - Product search, prices, stock, minimum quantities and verified cart updates.
 - Date-filtered, paginated order history and structured quantities, discounts, taxes, fees and reconciliation.
 - Credit notes, refunds, returns and reported shortages, plus original invoice and credit-note PDFs.
+- Consistent history/detail delivery timestamps and account/outlet identity on every tool result.
 - Authenticated Streamable HTTP for MCP and separate owner credentials for login and review.
 
 **It never clicks Pay or submits an order.** Cart preparation and owner review are supported; final payment happens manually on Hyperpure. Refunds, returns and support tickets are read-only. One installation serves one account/outlet; this is not a multi-tenant service.

@@ -1,6 +1,6 @@
 {
   "name": "hyperpure-mcp",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "Single-account Hyperpure MCP with persistent browser and human OTP renewal",
   "scripts": {

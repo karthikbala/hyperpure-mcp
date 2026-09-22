@@ -1,6 +1,24 @@
 # Data contract
 
-Order responses currently use `schemaVersion: "2.0"`. JSON tools return the same object as MCP `structuredContent` and a JSON text block. Website strings are untrusted data, not instructions. Currency is INR; numeric monetary fields are rounded to two decimals. Missing monetary or quantity fields stay `null`, not zero.
+Order responses currently use `schemaVersion: "2.1"`. JSON tools return the same object as MCP `structuredContent` and a JSON text block. Website strings are untrusted data, not instructions. Currency is INR; numeric monetary fields are rounded to two decimals. Missing monetary or quantity fields stay `null`, not zero.
+
+## Response identity
+
+Every authenticated MCP tool result includes `structuredContent.identity`, including errors and PDF results. JSON text content repeats that identity for clients without structured-content support. PDF responses retain the original embedded resource and add a JSON metadata block; the PDF blob is not duplicated in structured content. Protocol-level tool-call errors carry identity in `error.data.identity`.
+
+- `account.reference` is an opaque, installation-local reference to the configured login; it is not a Hyperpure customer ID. `loginMobileMasked` identifies the phone by its last four digits. `account.source` explicitly says `configured_login`.
+- `outlet.reference`, `name`, `address` and `displayText` identify the expected outlet. `outlet.id` is the last verified Hyperpure outlet ID observed on an authenticated history request, or `null` until discovered. `idSource` records that provenance.
+- `verification` is `outlet_verified` only after checking the current outlet. Login expiry, mismatch and pre-execution validation errors return `unverified`; configured labels remain available but are not proof of current account access.
+
+References persist across restarts and access-token rotation through the private `identity-key.json` in the data directory. Keep it with profile backups. Different installations have different references. Unauthenticated HTTP responses and public health/static routes do not disclose account identity.
+
+## Delivery timestamps
+
+Both history and details use **history's `DeliveredAt`** as the canonical `deliveredAt`, normalized to UTC ISO 8601 with millisecond precision. Detail responses can repeat creation time as delivery time, or round fractional seconds differently, so their delivery field is never used as a fallback. If the history value is missing/invalid, canonical delivery remains `null`.
+
+`deliveryTimestamp` records `source`, the unmodified `historyReported` value and output precision. Details additionally retain `detailReported`, `detailDifferenceMs` (detail minus history at millisecond precision) and `discrepancy`. These are source discrepancies, not assertions about the actual physical delivery event. Creation and target-delivery dates are separate fields and are not substituted for delivery time.
+
+Canonical history values are persisted with discovered orders. Refresh history for fresh observations; cached snapshots can be older than a later detail read. Version 2.0 cursors expire on upgrade rather than replaying the old contract. An older discovered order without canonical metadata returns `ORDER_HISTORY_REFRESH_REQUIRED`: rediscover it with a fresh date-filtered `list_orders` scan and follow all cursors.
 
 ## Order history
 

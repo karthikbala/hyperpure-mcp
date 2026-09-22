@@ -61,14 +61,16 @@ export class OrderHistory {
     }
     for (const r of rows) {
       const o = orderSummary(r);
-      index.orders[o.orderId] = { orderNumber: o.orderNumber, createdAt: o.createdAt };
+      index.orders[o.orderId] = o;
     }
     await this.store.write('order-index', index);
   }
   async list(args, { binding, firstPage, fetchPage }) {
     const now = this.now();
     const states = Object.fromEntries(
-      Object.entries(await this.store.read('order-pages', {})).filter(([, s]) => s.expiresAt > now),
+      Object.entries(await this.store.read('order-pages', {})).filter(
+        ([, s]) => s.expiresAt > now && s.schemaVersion === '2.1',
+      ),
     );
     let state,
       step = 0,
@@ -94,6 +96,7 @@ export class OrderHistory {
         );
       id = token();
       state = {
+        schemaVersion: '2.1',
         binding,
         filter: filters(args),
         anchor: null,
@@ -172,7 +175,7 @@ export class OrderHistory {
     state.nextStep++;
     const hasMore = state.offset < state.orders.length || !state.complete;
     const response = {
-      schemaVersion: '2.0',
+      schemaVersion: '2.1',
       orders,
       orderIds: orders.map((o) => o.orderId),
       filter: {

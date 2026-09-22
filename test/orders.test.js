@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { orderDetail } from '../src/order-data.js';
+import { orderDetail as normalizeDetail, orderSummary } from '../src/order-data.js';
 import { OrderHistory, filters } from '../src/order-history.js';
 
+const orderDetail = (raw) => normalizeDetail(raw, orderSummary(raw));
 const row = (label, value) => ({ Title: `<span>${label}</span>`, Value: `<span>${value}</span>` });
 const base = () => ({
   OrderId: 101,

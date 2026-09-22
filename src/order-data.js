@@ -40,6 +40,24 @@ const textList = (value) =>
             .filter(([k]) => ['Text', 'Title', 'SubTitle', 'Value'].includes(k))
             .flatMap(([, v]) => textList(v));
 
+// History's DeliveredAt is the canonical source. Detail sometimes repeats creation time.
+export function deliveryTimestamp(value) {
+  if (
+    typeof value !== 'string' ||
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value)
+  )
+    return null;
+  const time = Date.parse(value);
+  const date = value.slice(0, 10);
+  if (
+    !Number.isFinite(Date.parse(date)) ||
+    new Date(date).toISOString().slice(0, 10) !== date ||
+    Number(value.slice(11, 13)) > 23
+  )
+    return null;
+  return Number.isFinite(time) ? new Date(time).toISOString() : null;
+}
+
 export function orderSummary(raw) {
   if (
     !Number.isSafeInteger(raw.OrderId) ||
@@ -51,7 +69,12 @@ export function orderSummary(raw) {
     orderId: String(raw.OrderId),
     orderNumber: raw.OrderNo,
     createdAt: raw.CreationDatetime,
-    deliveredAt: raw.DeliveredAt || null,
+    deliveredAt: deliveryTimestamp(raw.DeliveredAt),
+    deliveryTimestamp: {
+      source: 'order_history.DeliveredAt',
+      historyReported: raw.DeliveredAt || null,
+      precision: 'milliseconds',
+    },
     targetDeliveryAt: raw.TargetDeliveryDate || null,
     status: raw.Status || null,
     paymentStatus: raw.PaymentStatus || null,
@@ -153,7 +176,16 @@ function issue(raw) {
   };
 }
 
-export function orderDetail(raw) {
+export function orderDetail(raw, history) {
+  if (
+    !history?.deliveryTimestamp ||
+    history.orderId !== String(raw.OrderId) ||
+    history.orderNumber !== raw.OrderNo
+  )
+    throw new ServiceError(
+      'ORDER_HISTORY_REFRESH_REQUIRED',
+      'Rediscover this order with list_orders before reading its details.',
+    );
   const summary = orderSummary(raw);
   if (!Array.isArray(raw.ProductDetailsForOrderList) || !Array.isArray(raw.PricingDetails))
     throw new ServiceError(
@@ -253,7 +285,20 @@ export function orderDetail(raw) {
   const issuesKnown = typeof raw.IssueHistory?.TotalIssueCount === 'number';
   return {
     ...summary,
-    schemaVersion: '2.0',
+    deliveredAt: history.deliveredAt,
+    deliveryTimestamp: {
+      ...history.deliveryTimestamp,
+      detailReported: raw.DeliveredAt || null,
+      detailDifferenceMs:
+        history.deliveredAt && deliveryTimestamp(raw.DeliveredAt)
+          ? Date.parse(raw.DeliveredAt) - Date.parse(history.deliveredAt)
+          : null,
+      discrepancy:
+        history.deliveredAt && deliveryTimestamp(raw.DeliveredAt)
+          ? history.deliveredAt !== deliveryTimestamp(raw.DeliveredAt)
+          : null,
+    },
+    schemaVersion: '2.1',
     items,
     totals: {
       currency: 'INR',

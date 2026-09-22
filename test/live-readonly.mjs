@@ -7,11 +7,28 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 const { PUBLIC_ORIGIN: origin, MCP_TOKEN: token, TEST_SEARCH_QUERY: query } = process.env;
 if (!origin?.startsWith('https://') || !token)
   throw Error('Set PUBLIC_ORIGIN and MCP_TOKEN in your private .env first.');
-const client = new Client({ name: 'hyperpure-readonly-smoke', version: '0.3.0' });
+const client = new Client({ name: 'hyperpure-readonly-smoke', version: '0.4.0' });
+let accountReference, outletReference;
+function checkIdentity(result) {
+  const identity = result.structuredContent?.identity;
+  assert.ok(identity?.account.reference && identity.outlet.reference, 'Response identity missing');
+  assert.ok(identity.outlet.name && identity.outlet.address, 'Outlet labels missing');
+  accountReference ??= identity.account.reference;
+  outletReference ??= identity.outlet.reference;
+  assert.ok(
+    identity.account.reference === accountReference &&
+      identity.outlet.reference === outletReference,
+    'Response identity changed',
+  );
+  return identity;
+}
 async function call(name, args = {}) {
   const result = await client.callTool({ name, arguments: args }, undefined, { timeout: 180_000 });
   // Do not print upstream messages or private payloads in test output.
   assert.ok(!result.isError, `${name} failed; inspect your owner page and private service logs.`);
+  assert.equal(checkIdentity(result).verification, 'outlet_verified');
+  const resource = result.content.find((c) => c.type === 'resource');
+  if (resource) return { ...result.structuredContent, ...resource.resource };
   if (result.structuredContent) return result.structuredContent;
   const content = result.content[0];
   return content.type === 'resource' ? content.resource : JSON.parse(content.text);
@@ -44,10 +61,12 @@ try {
   assert.ok(Array.isArray((await call('get_cart')).items));
   console.log('PASS cart read');
   const first = await call('list_orders', { pageSize: 1 });
+  const comparisons = [...first.orders];
   assert.ok(Array.isArray(first.orders));
   if (first.pagination.nextCursor) {
     const args = { cursor: first.pagination.nextCursor },
       second = await call('list_orders', args);
+    comparisons.push(...second.orders);
     assert.ok(
       isDeepStrictEqual(await call('list_orders', args), second),
       'Cursor replay changed; inspect the account privately.',
@@ -56,6 +75,20 @@ try {
     assert.equal(new Set(ids).size, ids.length);
     console.log('PASS cursor continuation and stable replay');
   }
+  for (const summary of comparisons) {
+    const detail = await call('get_order', { orderId: summary.orderId });
+    assert.ok(detail.deliveredAt === summary.deliveredAt, 'History/detail delivery mismatch');
+    assert.equal(detail.deliveryTimestamp.source, 'order_history.DeliveredAt');
+    assert.ok(detail.identity.outlet.id, 'Verified API outlet ID missing');
+  }
+  console.log('PASS canonical delivery timestamps and consistent account/outlet identity');
+  const unknown = await client.callTool({ name: 'get_order', arguments: { orderId: '1' } });
+  assert.equal(unknown.isError, true);
+  checkIdentity(unknown);
+  const invalid = await client.callTool({ name: 'list_orders', arguments: { pageSize: 0 } });
+  assert.equal(invalid.isError, true);
+  assert.equal(checkIdentity(invalid).verification, 'unverified');
+  console.log('PASS identity on operation and input-validation errors');
   if (first.orders.length) {
     const detail = await call('get_order', { orderId: first.orders[0].orderId });
     assert.ok(detail.orderId === first.orders[0].orderId, 'Order identity mismatch');
