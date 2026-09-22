@@ -1,0 +1,10 @@
+name: Feature request
+description: Suggest an improvement and explain the use case.
+body:
+  - type: textarea
+    id: use_case
+    attributes:
+      label: Problem and proposed behavior
+      description: Who benefits, what should happen, and what boundaries should remain?
+    validations:
+      required: true

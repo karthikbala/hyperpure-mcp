@@ -1,0 +1,25 @@
+name: Bug report
+description: Report a reproducible issue with sanitized information.
+body:
+  - type: markdown
+    attributes:
+      value: Do not include credentials, phone numbers, profiles, invoices or private account data. Report security vulnerabilities privately via SECURITY.md.
+  - type: input
+    id: version
+    attributes:
+      label: Version and environment
+      description: Release/commit, Node version and operating system.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Include the tool name and sanitized inputs, expected result and actual result.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized error details
+      description: Remove headers, tokens, personal information and document URLs.

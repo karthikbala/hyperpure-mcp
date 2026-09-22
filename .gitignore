@@ -1,0 +1,17 @@
+node_modules/
+runtime/
+.env
+.env.*
+!.env.example
+data/
+*.log
+.secrets/
+.private/
+profile/
+downloads/
+*.pdf
+.DS_Store
+coverage/
+test-results/
+playwright-report/
+.playwright-cli/

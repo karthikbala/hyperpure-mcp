@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Hyperpure connection</title>
+    <link rel="stylesheet" href="/owner.css" />
+    <script src="/owner.js" defer></script>
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">HYPERPURE MCP · OWNER CONTROLS</p>
+      <h1>Hyperpure connection</h1>
+      <p>One browser, ready when you need it.</p>
+      <section id="signin">
+        <h2>Open your private controls</h2>
+        <form id="access">
+          <label
+            >Owner access key<input
+              name="key"
+              type="password"
+              required
+              autocomplete="current-password" /></label
+          ><button>Unlock</button>
+        </form>
+      </section>
+      <section id="controls" hidden>
+        <h2 id="state">Checking connection…</h2>
+        <p id="verified"></p>
+        <div class="actions">
+          <button id="check">Check connection</button><button id="request">Send login OTP</button>
+        </div>
+        <form id="verify" hidden>
+          <label
+            >6-digit code from Hyperpure<input
+              name="otp"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              pattern="[0-9]{6}"
+              maxlength="6"
+              required /></label
+          ><button>Verify and reconnect</button>
+        </form>
+        <p>
+          Request a code only when you have your phone. The code is used for this login and is not
+          saved by this service.
+        </p>
+        <button id="logout" class="secondary">Lock controls</button>
+      </section>
+      <section id="review" hidden>
+        <h2>Review your purchase</h2>
+        <p id="reviewTime"></p>
+        <pre id="reviewDetails"></pre>
+        <button id="approve">Approve for manual payment</button>
+        <p id="paymentNote">
+          Approval records your decision. You then complete payment on Hyperpure.
+        </p>
+        <a
+          id="paymentLink"
+          href="https://www.hyperpure.com/buyer/checkout"
+          target="_blank"
+          rel="noopener noreferrer"
+          hidden
+          >Open Hyperpure checkout</a
+        >
+      </section>
+      <p id="message" role="status" aria-live="polite"></p>
+      <footer>
+        Cart changes and purchases are separate. This service never clicks Pay. You complete payment
+        on Hyperpure after reviewing the checkout.
+      </footer>
+    </main>
+  </body>
+</html>
