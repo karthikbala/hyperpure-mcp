@@ -29,7 +29,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.0",
     "express": "5.2.1",
-    "playwright": "1.63.0",
+    "playwright": "1.64.0",
     "zod": "4.6.5"
   },
   "homepage": "https://github.com/karthikbala/hyperpure-mcp#readme",
